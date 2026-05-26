@@ -1,0 +1,13 @@
+{
+  "name": "alice-rummy",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "dev": "partykit dev",
+    "deploy": "partykit deploy",
+    "client": "npx serve src -l 5000"
+  },
+  "dependencies": {
+    "partykit": "latest"
+  }
+}

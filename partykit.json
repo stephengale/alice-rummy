@@ -1,0 +1,5 @@
+{
+  "name": "rummy-game",
+  "main": "src/server.ts",
+  "compatibilityDate": "2023-02-16"
+}

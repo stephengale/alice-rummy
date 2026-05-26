@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <title>Alice in Rummy</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Cinzel+Decorative:wght@400;700&family=Crimson+Text:ital,wght@0,400;0,600;1,400&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+  <!-- ── SPLASH ── -->
+  <div id="screen-splash" class="screen active">
+    <div class="splash-bg"></div>
+    <div class="splash-content">
+      <div class="splash-cards-deco">
+        <div class="deco-card deco-card-1">♥</div>
+        <div class="deco-card deco-card-2">♠</div>
+        <div class="deco-card deco-card-3">♦</div>
+        <div class="deco-card deco-card-4">♣</div>
+      </div>
+      <img src="../assets/splash/logo.png" alt="Alice in Rummy" class="logo-img">
+      <h1 class="game-title">Alice in Rummy</h1>
+      <p class="game-subtitle">A curious game of cards</p>
+      <button id="btn-start" class="btn-primary">Start Game</button>
+    </div>
+  </div>
+
+  <!-- ── SELECT ── -->
+  <div id="screen-select" class="screen">
+    <div class="select-content">
+      <h2 class="select-heading">Who are you?</h2>
+      <p class="select-sub">Choose your character to enter Wonderland</p>
+      <div class="player-choices">
+        <button class="btn-player" data-player="Tas">
+          <span class="player-icon">🐱</span>
+          <span class="player-label">Tas</span>
+        </button>
+        <button class="btn-player" data-player="Steve">
+          <span class="player-icon">🎩</span>
+          <span class="player-label">Steve</span>
+        </button>
+      </div>
+      <div id="select-status" class="status-msg"></div>
+    </div>
+  </div>
+
+  <!-- ── GAME ── -->
+  <div id="screen-game" class="screen">
+
+    <!-- Opponent strip -->
+    <div class="opponent-strip">
+      <div class="player-info-bar">
+        <span class="pi-name" id="opponent-name">Opponent</span>
+        <span class="pi-score-label">Score</span>
+        <span class="pi-score" id="opponent-score">0</span>
+      </div>
+      <div class="opponent-hand" id="opponent-hand"></div>
+    </div>
+
+    <!-- Table -->
+    <div class="table-area">
+      <div class="piles-row">
+        <div class="pile" id="stock-pile">
+          <div class="card card-back pile-card" id="stock-card"></div>
+          <span class="pile-label">Stock</span>
+          <span class="pile-count" id="stock-count">0</span>
+        </div>
+        <div class="pile" id="discard-pile">
+          <div class="card pile-card empty-pile" id="discard-top">
+            <span class="empty-label">Discard</span>
+          </div>
+          <span class="pile-label">Discard</span>
+        </div>
+      </div>
+      <div class="melds-area" id="melds-area">
+        <p class="melds-empty" id="melds-empty">No melds yet</p>
+      </div>
+    </div>
+
+    <!-- Player strip -->
+    <div class="player-strip">
+      <div class="hand-scroll-wrap">
+        <div class="player-hand" id="player-hand"></div>
+      </div>
+      <div class="action-bar">
+        <div class="turn-status" id="turn-status">Connecting…</div>
+        <div class="action-buttons" id="action-buttons"></div>
+      </div>
+      <div class="player-info-bar self">
+        <span class="pi-name" id="my-name">You</span>
+        <span class="pi-score-label">Score</span>
+        <span class="pi-score" id="my-score">0</span>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- ── FINISH ── -->
+  <div id="screen-finish" class="screen">
+    <div class="finish-content">
+      <div class="finish-crown">♛</div>
+      <h2 id="finish-title" class="finish-title"></h2>
+      <p id="finish-subtitle" class="finish-subtitle"></p>
+      <div class="final-scores" id="final-scores"></div>
+      <button id="btn-new-game" class="btn-primary">Play Again</button>
+    </div>
+  </div>
+
+  <!-- ── ROUND OVER OVERLAY ── -->
+  <div id="round-overlay" class="overlay hidden">
+    <div class="overlay-card">
+      <div class="overlay-icon" id="overlay-icon">🃏</div>
+      <h3 id="overlay-title"></h3>
+      <p id="overlay-message"></p>
+      <div class="overlay-scores" id="overlay-scores"></div>
+      <p class="overlay-countdown" id="overlay-countdown"></p>
+    </div>
+  </div>
+
+  <!-- ── LAY OFF MODAL ── -->
+  <div id="layoff-modal" class="overlay hidden">
+    <div class="overlay-card modal-card">
+      <h3>Lay off onto which meld?</h3>
+      <div class="meld-choices" id="meld-choices"></div>
+      <button id="btn-cancel-layoff" class="btn-secondary">Cancel</button>
+    </div>
+  </div>
+
+  <!-- ── TOAST ── -->
+  <div id="toast" class="toast hidden"></div>
+
+  <script src="app.js"></script>
+</body>
+</html>
