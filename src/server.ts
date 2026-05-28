@@ -43,7 +43,6 @@ const ROUND_OVER_DELAY_MS = 5000;
 
 export default class RummyServer implements Party.Server {
   private state: GameState;
-  private autoStartScheduled = false;
 
   constructor(readonly room: Party.Room) {
     this.state = {
@@ -91,6 +90,10 @@ export default class RummyServer implements Party.Server {
         return this.handleDoneAction(sender, player);
       case "discard":
         return this.handleDiscard(sender, player, msg.cardId as string);
+      case "reset":
+        return this.handleReset(sender, player);
+      case "end_game":
+        return this.handleEndGame();
     }
   }
 
@@ -100,6 +103,17 @@ export default class RummyServer implements Party.Server {
     if (!(PLAYERS as readonly string[]).includes(playerName)) {
       return conn.send(JSON.stringify({ type: "error", message: "Invalid player name" }));
     }
+
+    const existingId = this.state.connections[playerName];
+    if (existingId && existingId !== conn.id) {
+      return conn.send(JSON.stringify({ type: "error", message: "That avatar is already taken" }));
+    }
+
+    const previousPlayer = this.playerFor(conn.id);
+    if (previousPlayer && previousPlayer !== playerName) {
+      delete this.state.connections[previousPlayer];
+    }
+
     this.state.connections[playerName] = conn.id;
     this.broadcast();
     this.checkAutoStart();
@@ -249,12 +263,8 @@ export default class RummyServer implements Party.Server {
 
   private checkAutoStart() {
     const connected = Object.keys(this.state.connections).length;
-    if (connected === 2 && this.state.phase === "waiting" && !this.autoStartScheduled) {
-      this.autoStartScheduled = true;
-      setTimeout(() => {
-        this.autoStartScheduled = false;
-        if (this.state.phase === "waiting") this.startRound();
-      }, 3000);
+    if (connected === 2 && this.state.phase === "waiting") {
+      this.startRound();
     }
   }
 
@@ -327,6 +337,37 @@ export default class RummyServer implements Party.Server {
         this.checkAutoStart();
       }
     }, ROUND_OVER_DELAY_MS);
+  }
+
+  private handleEndGame() {
+    // Notify all clients first, then wipe state
+    for (const c of this.room.getConnections()) {
+      c.send(JSON.stringify({ type: "end_game" }));
+    }
+    this.state = {
+      phase: "waiting",
+      scores: { Tas: 0, Steve: 0 },
+      round: null,
+      winner: null,
+      connections: {},
+      roundNumber: 0,
+      lastRoundSummary: null,
+    };
+  }
+
+  private handleReset(conn: Party.Connection, player: string | null) {
+    if (!player) return;
+    this.state = {
+      phase: "waiting",
+      scores: { Tas: 0, Steve: 0 },
+      round: null,
+      winner: null,
+      connections: this.state.connections,
+      roundNumber: 0,
+      lastRoundSummary: null,
+    };
+    this.broadcast();
+    this.checkAutoStart();
   }
 
   // --- Validation ---

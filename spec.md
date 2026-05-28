@@ -29,12 +29,41 @@ Describe the key paths a user takes through the app, step by step.
 
 ### Flow 1: Game Start
 
-1. When the game starts the user is shown the start screen. The background to this screen is assets/splash/background.png. The logo in assets/splash/logo.png is displayed centred in the screen. There is a button saying "Start Game".
+1. When the game starts the user is shown the start screen. The background to this screen is assets/splash/background.png. There is a button saying "Start Game".
 2. When the Start Game button is pressed then the user is taken to the Select screen.
 
-### Flow 2: [Name]
+### Flow 2: Select Options
 
-1. ...
+1. The Select screen shows the option to pick one of two characters: Tas or Steve. The selection is made by clicking on the avatar for one or the other.
+   1. The avatar image for Tas is in `assets/select/avatar-tas.png`
+   2. The avatar image for Steve is in `assets/select/avatar-steve.png`
+   3. The avatar buttons are displayed in the center of the screen side by side with spacing between them and a dark grey border around them.
+2. When the player selects an avatar, that avatar gets a glowing blue border.
+3. If the other player is already connected and has selected the opposite avatar, that avatar has a glowing green border and the text "Connected" appears underneath it. That avatar is not selectable by the current player.
+4. Selecting an avatar sends a join request to the server and keeps the user on the Select screen until both players are connected.
+   1. If the second player is not yet connected, display a centered message under the avatars: "Waiting for other player..."
+   2. Once the second player connects with the other avatar, both clients move to the Game screen and the round begins immediately.
+5. The Select screen background is `assets/select/background.png`.
+6. A **Reset** button is displayed on the Select screen. When pressed, the player is immediately returned to the Game Start screen. The WebSocket connection is closed, the server removes the player from the session, and all local state (player name, game state) is cleared. No confirmation dialog is shown.
+
+### Flow 3: Reset
+
+1. When the game ends, the Finish screen shows a "Play Again" button.
+2. Pressing "Play Again" sends a reset request to the server.
+3. The server clears the current match state, resets scores to zero, and returns the room to the waiting state.
+4. If both players remain connected, the server immediately begins a new round and both clients transition to the Game screen.
+5. If one player disconnects before the reset is applied, the remaining player stays on the Select screen and waits for the other player to join.
+
+### Flow 4: End Game
+
+1. At any point during the Game screen, either player may press the **End Game** button.
+2. A confirmation dialog appears asking "Are you sure you want to end the game?", with a **Yes** button and a **No** button.
+3. If the player selects **No**, the dialog closes and the game continues as normal.
+4. If the player selects **Yes**:
+   - The server resets all game state (scores, round, connections).
+   - Both players are navigated to the Game Start (Splash) screen.
+   - All local client state (player name, hand, selections) is cleared.
+
 
 ## Tech Stack
 

@@ -22,6 +22,10 @@ function showScreen(name) {
   document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
   document.getElementById(`screen-${name}`).classList.add('active');
   state.screen = name;
+
+  if (name === 'select' && (!state.ws || state.ws.readyState > WebSocket.OPEN)) {
+    connect();
+  }
 }
 
 // ── WebSocket ──────────────────────────────────────────────────────────────
@@ -65,6 +69,16 @@ function send(msg) {
 function handleServerMsg(msg) {
   if (msg.type === 'error') {
     showToast(msg.message);
+    // If join was rejected because the avatar is taken, clear our local selection
+    if (msg.message === 'That avatar is already taken') {
+      state.myName = null;
+      if (state.screen === 'select') renderSelect();
+    }
+    return;
+  }
+
+  if (msg.type === 'end_game') {
+    doEndGame();
     return;
   }
 
@@ -87,24 +101,30 @@ function reconcileScreen(prev) {
     return;
   }
 
-  if (state.screen === 'select' && (phase === 'playing' || phase === 'round_over' || phase === 'waiting')) {
-    // Only move to game if we know who we are
-    if (g.myName) showScreen('game');
+  if (phase === 'playing' || phase === 'round_over') {
+    // Server doesn't recognise our connection — resend join so it can identify us
+    if (!g.myName && state.myName) {
+      send({ type: 'join', player: state.myName });
+      return;
+    }
+    if (g.myName && state.screen !== 'game') {
+      showScreen('game');
+    }
+    if (phase === 'round_over') {
+      showRoundOverlay();
+    } else {
+      hideRoundOverlay();
+    }
+    if (prev?.phase === 'round_over' && phase === 'playing') {
+      state.selectedIds.clear();
+      state.layoffMode = false;
+    }
     return;
   }
 
-  // Round overlay
-  if (phase === 'round_over') {
-    showRoundOverlay();
-  } else {
-    hideRoundOverlay();
-  }
-
-  // On a new round starting, clear selection
-  if (prev && prev.phase === 'round_over' && phase === 'playing') {
-    state.selectedIds.clear();
-    state.layoffMode = false;
-  }
+  // phase === 'waiting'
+  if (state.screen !== 'select') showScreen('select');
+  hideRoundOverlay();
 }
 
 // ── Top-level render ───────────────────────────────────────────────────────
@@ -119,21 +139,56 @@ function render() {
 function renderSelect() {
   const g = state.game;
   const statusEl = document.getElementById('select-status');
-  if (!g) { statusEl.textContent = ''; return; }
+  const connectionsEl = document.getElementById('select-connections');
+
+  // Not yet connected to server — disable all buttons and show loading state
+  if (!g) {
+    document.querySelectorAll('.btn-player').forEach(btn => {
+      btn.disabled = true;
+      btn.classList.remove('selected', 'connected');
+      const tag = btn.querySelector('.player-tag');
+      if (tag) tag.textContent = '';
+    });
+    if (connectionsEl) connectionsEl.textContent = '';
+    statusEl.textContent = 'Connecting to Wonderland…';
+    return;
+  }
 
   const connected = g.connectedPlayers || [];
   const other = state.myName === 'Tas' ? 'Steve' : 'Tas';
 
+  document.querySelectorAll('.btn-player').forEach(btn => {
+    const playerName = btn.dataset.player;
+    const isMe = state.myName === playerName;
+    const isOtherConnected = connected.includes(playerName) && !isMe;
+    const tag = btn.querySelector('.player-tag');
+
+    btn.classList.toggle('selected', isMe);
+    btn.classList.toggle('connected', isOtherConnected);
+    // Disable the button if the other player already claimed it,
+    // or if we've already chosen and this isn't our button
+    btn.disabled = isOtherConnected || Boolean(state.myName && !isMe);
+
+    if (tag) tag.textContent = isOtherConnected ? 'Connected' : '';
+  });
+
+  if (connectionsEl) {
+    connectionsEl.textContent = connected.length > 0
+      ? `${connected.length} / 2 connected`
+      : '';
+  }
+
   if (!state.myName) {
-    statusEl.textContent = '';
+    statusEl.textContent = 'Choose your character to begin.';
     return;
   }
 
   if (connected.length < 2) {
     statusEl.textContent = `Waiting for ${other} to join…`;
-  } else {
-    statusEl.textContent = `${other} is here! Starting soon…`;
+    return;
   }
+
+  statusEl.textContent = 'Both players connected — starting game…';
 }
 
 // ── GAME screen ────────────────────────────────────────────────────────────
@@ -519,6 +574,22 @@ function makeBtn(label, cls, onClick) {
   return btn;
 }
 
+// ── End Game ───────────────────────────────────────────────────────────────
+function doEndGame() {
+  state.myName = null;
+  state.game = null;
+  state.selectedIds.clear();
+  state.layoffMode = false;
+  document.getElementById('end-game-modal').classList.add('hidden');
+  hideRoundOverlay();
+  if (state.ws) {
+    state.ws.onclose = null; // prevent auto-reconnect
+    state.ws.close();
+    state.ws = null;
+  }
+  showScreen('splash');
+}
+
 // ── Toast ──────────────────────────────────────────────────────────────────
 function showToast(msg) {
   const el = document.getElementById('toast');
@@ -528,6 +599,25 @@ function showToast(msg) {
   state.toastTimer = setTimeout(() => el.classList.add('hidden'), 3200);
 }
 
+// ── Music ──────────────────────────────────────────────────────────────────
+const music = document.getElementById('bg-music');
+const muteBtn = document.getElementById('btn-mute');
+
+// Browsers allow muted autoplay — start muted, then immediately unmute
+music.muted = true;
+music.play().then(() => {
+  music.muted = false;
+}).catch(() => {
+  // Autoplay still blocked (rare); fall back to first interaction
+  music.muted = false;
+  document.addEventListener('click', () => music.play().catch(() => {}), { once: true });
+});
+
+muteBtn.addEventListener('click', () => {
+  music.muted = !music.muted;
+  muteBtn.textContent = music.muted ? '🔇' : '🔊';
+});
+
 // ── Event bindings ─────────────────────────────────────────────────────────
 document.getElementById('btn-start').addEventListener('click', () => {
   showScreen('select');
@@ -535,27 +625,63 @@ document.getElementById('btn-start').addEventListener('click', () => {
 
 document.querySelectorAll('.btn-player').forEach(btn => {
   btn.addEventListener('click', () => {
+    if (btn.disabled) return;
+    // Guard: server state must have arrived before a choice is allowed
+    if (!state.game) {
+      showToast('Still connecting — please wait a moment');
+      return;
+    }
     const playerName = btn.dataset.player;
     state.myName = playerName;
-
-    // Highlight selected
-    document.querySelectorAll('.btn-player').forEach(b => b.style.opacity = '0.5');
-    btn.style.opacity = '1';
-
-    document.getElementById('select-status').textContent = 'Connecting…';
-    connect();
+    renderSelect();
+    // Send join on the existing connection — no need to reconnect
+    send({ type: 'join', player: playerName });
   });
+});
+
+document.getElementById('btn-select-reset').addEventListener('click', () => {
+  state.myName = null;
+  state.game = null;
+  state.selectedIds.clear();
+  state.layoffMode = false;
+  if (state.ws) {
+    state.ws.onclose = null; // prevent auto-reconnect
+    state.ws.close();
+    state.ws = null;
+  }
+  showScreen('splash');
+});
+
+document.getElementById('btn-end-game').addEventListener('click', () => {
+  document.getElementById('end-game-modal').classList.remove('hidden');
+});
+
+document.getElementById('btn-end-yes').addEventListener('click', () => {
+  send({ type: 'end_game' });
+  // doEndGame() will be called when the server echoes end_game back to us
+  // If the socket is already dead, navigate locally as a fallback
+  if (!state.ws || state.ws.readyState !== WebSocket.OPEN) doEndGame();
+});
+
+document.getElementById('btn-end-no').addEventListener('click', () => {
+  document.getElementById('end-game-modal').classList.add('hidden');
 });
 
 document.getElementById('btn-cancel-layoff').addEventListener('click', exitLayoffMode);
 
 document.getElementById('btn-new-game').addEventListener('click', () => {
-  // Reset and go back to select
+  if (state.ws && state.ws.readyState === WebSocket.OPEN) {
+    send({ type: 'reset' });
+    state.selectedIds.clear();
+    state.layoffMode = false;
+    return;
+  }
+
+  // Fallback if connection is closed
   state.myName = null;
   state.game = null;
   state.selectedIds.clear();
   state.layoffMode = false;
-  if (state.ws) { state.ws.onclose = null; state.ws.close(); state.ws = null; }
   document.querySelectorAll('.btn-player').forEach(b => b.style.opacity = '1');
   showScreen('select');
 });

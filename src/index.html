@@ -23,11 +23,8 @@
         <div class="deco-card deco-card-3">♦</div>
         <div class="deco-card deco-card-4">♣</div>
       </div>
-      <img src="../assets/splash/logo.png" alt="Alice in Rummy" class="logo-img">
-      <h1 class="game-title">Alice in Rummy</h1>
-      <p class="game-subtitle">A curious game of cards</p>
-      <button id="btn-start" class="btn-primary">Start Game</button>
     </div>
+    <button id="btn-start" class="btn-primary">Start Game</button>
   </div>
 
   <!-- ── SELECT ── -->
@@ -37,15 +34,19 @@
       <p class="select-sub">Choose your character to enter Wonderland</p>
       <div class="player-choices">
         <button class="btn-player" data-player="Tas">
-          <span class="player-icon">🐱</span>
+          <img class="player-avatar" src="assets/select/avatar-tas.png" alt="Tas avatar">
           <span class="player-label">Tas</span>
+          <span class="player-tag"></span>
         </button>
         <button class="btn-player" data-player="Steve">
-          <span class="player-icon">🎩</span>
+          <img class="player-avatar" src="assets/select/avatar-steve.png" alt="Steve avatar">
           <span class="player-label">Steve</span>
+          <span class="player-tag"></span>
         </button>
       </div>
+      <div id="select-connections" class="connections-msg"></div>
       <div id="select-status" class="status-msg"></div>
+      <button id="btn-select-reset" class="btn-secondary btn-select-reset">← Back to Start</button>
     </div>
   </div>
 
@@ -58,6 +59,7 @@
         <span class="pi-name" id="opponent-name">Opponent</span>
         <span class="pi-score-label">Score</span>
         <span class="pi-score" id="opponent-score">0</span>
+        <button id="btn-end-game" class="btn-end-game">End Game</button>
       </div>
       <div class="opponent-hand" id="opponent-hand"></div>
     </div>
@@ -122,6 +124,19 @@
     </div>
   </div>
 
+  <!-- ── END GAME CONFIRM ── -->
+  <div id="end-game-modal" class="overlay hidden">
+    <div class="overlay-card modal-card">
+      <div class="overlay-icon">🚪</div>
+      <h3>End the Game?</h3>
+      <p>Both players will return to the start screen and all progress will be lost.</p>
+      <div class="confirm-buttons">
+        <button id="btn-end-yes" class="btn-primary btn-danger">Yes, End Game</button>
+        <button id="btn-end-no" class="btn-secondary">No, Keep Playing</button>
+      </div>
+    </div>
+  </div>
+
   <!-- ── LAY OFF MODAL ── -->
   <div id="layoff-modal" class="overlay hidden">
     <div class="overlay-card modal-card">
@@ -133,6 +148,10 @@
 
   <!-- ── TOAST ── -->
   <div id="toast" class="toast hidden"></div>
+
+  <!-- ── AUDIO ── -->
+  <audio id="bg-music" src="../assets/splash/music.mp3" loop preload="auto"></audio>
+  <button id="btn-mute" class="btn-mute" title="Toggle music">🔊</button>
 
   <script src="app.js"></script>
 </body>
