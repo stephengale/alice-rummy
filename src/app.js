@@ -1,5 +1,5 @@
 // ── Constants ──────────────────────────────────────────────────────────────
-const WS_URL = 'wss://localhost:1999/party/main';
+const WS_URL = 'wss://rummy-game.stephengale.partykit.dev/party/main';
 
 const RANK_LABEL = { 1: 'A', 11: 'J', 12: 'Q', 13: 'K' };
 const SUIT_SYMBOL = { H: '♥', D: '♦', C: '♣', S: '♠' };
