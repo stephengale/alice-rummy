@@ -15,7 +15,10 @@ const state = {
   layoffMode: false,
   toastTimer: null,
   countdownTimer: null,
+  handOrder: [],         // local display order of card IDs
 };
+
+let dragState = null;
 
 // ── Screens ────────────────────────────────────────────────────────────────
 function showScreen(name) {
@@ -85,6 +88,7 @@ function handleServerMsg(msg) {
   if (msg.type === 'state') {
     const prev = state.game;
     state.game = msg.state;
+    if (msg.state.myHand) syncHandOrder(msg.state.myHand);
     reconcileScreen(prev);
     render();
   }
@@ -118,6 +122,7 @@ function reconcileScreen(prev) {
     if (prev?.phase === 'round_over' && phase === 'playing') {
       state.selectedIds.clear();
       state.layoffMode = false;
+      state.handOrder = [];
     }
     return;
   }
@@ -313,6 +318,8 @@ function renderMelds() {
 }
 
 function renderPlayerHand() {
+  if (dragState?.moved) return; // don't interrupt an active drag
+
   const g = state.game;
   const el = document.getElementById('player-hand');
   el.innerHTML = '';
@@ -322,7 +329,13 @@ function renderPlayerHand() {
   const isDiscard = g.turnPhase === 'discard';
   const isAction = g.turnPhase === 'action';
 
-  for (const card of g.myHand) {
+  const ordered = [...g.myHand].sort((a, b) => {
+    const ai = state.handOrder.indexOf(a.id);
+    const bi = state.handOrder.indexOf(b.id);
+    return ai - bi;
+  });
+
+  for (const card of ordered) {
     const cardEl = makeCardEl(card);
 
     const isNoDiscard = isMyTurn && isDiscard && card.id === g.drawnFromDiscardId;
@@ -338,6 +351,7 @@ function renderPlayerHand() {
       cardEl.onclick = () => toggleSelect(card.id);
     }
 
+    addDragToCard(cardEl, card.id);
     el.appendChild(cardEl);
   }
 }
@@ -507,6 +521,124 @@ function makeMiniCardEl(card) {
   const suit = SUIT_SYMBOL[card.suit] ?? '?';
   el.innerHTML = `<span>${rank}</span><span>${suit}</span>`;
   return el;
+}
+
+// ── Hand order sync ────────────────────────────────────────────────────────
+function syncHandOrder(serverHand) {
+  const serverIds = serverHand.map(c => c.id);
+  const kept = state.handOrder.filter(id => serverIds.includes(id));
+  const added = serverIds.filter(id => !kept.includes(id));
+  state.handOrder = [...kept, ...added];
+}
+
+// ── Hand drag-to-reorder ────────────────────────────────────────────────────
+function addDragToCard(cardEl, cardId) {
+  cardEl.addEventListener('pointerdown', (e) => startDrag(e, cardId), { passive: true });
+}
+
+function startDrag(e, cardId) {
+  const handEl = document.getElementById('player-hand');
+  const cardEl = handEl.querySelector(`[data-card-id="${cardId}"]`);
+  if (!cardEl) return;
+  const rect = cardEl.getBoundingClientRect();
+  dragState = {
+    cardId,
+    startX: e.clientX,
+    startY: e.clientY,
+    offsetX: e.clientX - rect.left,
+    offsetY: e.clientY - rect.top,
+    moved: false,
+    ghost: null,
+    lastInsertBefore: undefined,
+  };
+  document.addEventListener('pointermove', onDragMove, { passive: true });
+  document.addEventListener('pointerup', onDragEnd);
+  document.addEventListener('pointercancel', onDragEnd);
+}
+
+function onDragMove(e) {
+  if (!dragState) return;
+  const dx = e.clientX - dragState.startX;
+  const dy = e.clientY - dragState.startY;
+
+  if (!dragState.moved) {
+    if (Math.hypot(dx, dy) < 8) return;
+    dragState.moved = true;
+
+    const handEl = document.getElementById('player-hand');
+    const cardEl = handEl.querySelector(`[data-card-id="${dragState.cardId}"]`);
+    if (!cardEl) return;
+
+    const ghost = cardEl.cloneNode(true);
+    ghost.style.cssText = `
+      position:fixed; pointer-events:none; z-index:1000;
+      opacity:0.9; transform:rotate(4deg) scale(1.08);
+      width:${cardEl.offsetWidth}px; height:${cardEl.offsetHeight}px;
+      left:${e.clientX - dragState.offsetX}px;
+      top:${e.clientY - dragState.offsetY}px;
+      box-shadow:0 8px 24px rgba(0,0,0,0.55);
+    `;
+    document.body.appendChild(ghost);
+    dragState.ghost = ghost;
+    cardEl.style.opacity = '0.25';
+    handEl.closest('.hand-scroll-wrap').style.overflowX = 'hidden';
+  }
+
+  if (!dragState.ghost) return;
+
+  dragState.ghost.style.left = `${e.clientX - dragState.offsetX}px`;
+  dragState.ghost.style.top  = `${e.clientY - dragState.offsetY}px`;
+
+  const insertBefore = getDragInsertTarget(e.clientX);
+  if (insertBefore !== dragState.lastInsertBefore) {
+    dragState.lastInsertBefore = insertBefore;
+    reorderHandDOM(dragState.cardId, insertBefore);
+  }
+}
+
+function getDragInsertTarget(clientX) {
+  const handEl = document.getElementById('player-hand');
+  for (const c of handEl.querySelectorAll('.card[data-card-id]')) {
+    if (c.dataset.cardId === dragState.cardId) continue;
+    const rect = c.getBoundingClientRect();
+    if (clientX < rect.left + rect.width / 2) return c.dataset.cardId;
+  }
+  return null;
+}
+
+function reorderHandDOM(dragCardId, insertBeforeId) {
+  const handEl = document.getElementById('player-hand');
+  const dragEl = handEl.querySelector(`[data-card-id="${dragCardId}"]`);
+  if (!dragEl) return;
+  if (insertBeforeId) {
+    const beforeEl = handEl.querySelector(`[data-card-id="${insertBeforeId}"]`);
+    if (beforeEl) handEl.insertBefore(dragEl, beforeEl);
+  } else {
+    handEl.appendChild(dragEl);
+  }
+}
+
+function onDragEnd() {
+  document.removeEventListener('pointermove', onDragMove);
+  document.removeEventListener('pointerup', onDragEnd);
+  document.removeEventListener('pointercancel', onDragEnd);
+
+  if (!dragState) return;
+
+  if (dragState.moved) {
+    dragState.ghost?.remove();
+    const handEl = document.getElementById('player-hand');
+    handEl.closest('.hand-scroll-wrap').style.overflowX = '';
+    state.handOrder = [...handEl.querySelectorAll('.card[data-card-id]')]
+      .map(c => c.dataset.cardId);
+    // Swallow the synthetic click that follows pointerup
+    document.addEventListener('click', e => e.stopPropagation(), { capture: true, once: true });
+    dragState = null;
+    renderPlayerHand();
+    renderActionBar();
+  } else {
+    dragState = null;
+  }
 }
 
 // ── Selection ──────────────────────────────────────────────────────────────
