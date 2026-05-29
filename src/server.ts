@@ -64,6 +64,14 @@ export default class RummyServer implements Party.Server {
     const player = this.playerFor(conn.id);
     if (player) {
       delete this.state.connections[player];
+      if (this.state.phase === "playing" || this.state.phase === "round_over") {
+        for (const c of this.room.getConnections()) {
+          c.send(JSON.stringify({ type: "opponent_disconnected" }));
+        }
+        this.state.phase = "waiting";
+        this.state.round = null;
+        this.state.lastRoundSummary = null;
+      }
       this.broadcast();
     }
   }
@@ -340,7 +348,6 @@ export default class RummyServer implements Party.Server {
   }
 
   private handleEndGame() {
-    // Notify all clients first, then wipe state
     for (const c of this.room.getConnections()) {
       c.send(JSON.stringify({ type: "end_game" }));
     }

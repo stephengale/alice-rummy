@@ -25,6 +25,7 @@
       </div>
     </div>
     <button id="btn-start" class="btn-primary">Start Game</button>
+    <button id="btn-mute" class="btn-mute" title="Toggle music">🔊</button>
   </div>
 
   <!-- ── SELECT ── -->
@@ -59,13 +60,15 @@
         <span class="pi-name" id="opponent-name">Opponent</span>
         <span class="pi-score-label">Score</span>
         <span class="pi-score" id="opponent-score">0</span>
-        <button id="btn-end-game" class="btn-end-game">End Game</button>
       </div>
       <div class="opponent-hand" id="opponent-hand"></div>
     </div>
 
     <!-- Table -->
     <div class="table-area">
+      <div class="melds-area" id="melds-area">
+        <p class="melds-empty" id="melds-empty">No melds yet</p>
+      </div>
       <div class="piles-row">
         <div class="pile" id="stock-pile">
           <div class="card card-back pile-card" id="stock-card"></div>
@@ -78,9 +81,6 @@
           </div>
           <span class="pile-label">Discard</span>
         </div>
-      </div>
-      <div class="melds-area" id="melds-area">
-        <p class="melds-empty" id="melds-empty">No melds yet</p>
       </div>
     </div>
 
@@ -95,6 +95,7 @@
       </div>
       <div class="player-info-bar self">
         <span class="pi-name" id="my-name">You</span>
+        <button id="btn-end-game" class="btn-end-game">End Game</button>
         <span class="pi-score-label">Score</span>
         <span class="pi-score" id="my-score">0</span>
       </div>
@@ -137,6 +138,16 @@
     </div>
   </div>
 
+  <!-- ── DISCONNECT MODAL ── -->
+  <div id="disconnect-modal" class="overlay hidden">
+    <div class="overlay-card modal-card">
+      <div class="overlay-icon">🔌</div>
+      <h3>Opponent Disconnected</h3>
+      <p>Your opponent has left the game. The game has ended.</p>
+      <button id="btn-disconnect-ok" class="btn-primary">Ok</button>
+    </div>
+  </div>
+
   <!-- ── LAY OFF MODAL ── -->
   <div id="layoff-modal" class="overlay hidden">
     <div class="overlay-card modal-card">
@@ -151,7 +162,6 @@
 
   <!-- ── AUDIO ── -->
   <audio id="bg-music" src="../assets/splash/music.mp3" loop preload="auto"></audio>
-  <button id="btn-mute" class="btn-mute" title="Toggle music">🔊</button>
 
   <script src="app.js"></script>
 </body>

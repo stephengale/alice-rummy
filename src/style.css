@@ -282,8 +282,8 @@ html, body {
 }
 
 .btn-end-game {
-  font-size: 0.62rem;
-  padding: 3px 8px;
+  font-size: 0.85rem;
+  padding: 5px 14px;
   background: transparent;
   border: 1px solid rgba(192,57,43,0.45);
   border-radius: 10px;
@@ -333,12 +333,14 @@ html, body {
 .pi-name {
   font-family: 'Cinzel Decorative', serif;
   font-size: 0.85rem;
+  font-weight: 700;
   color: var(--gold);
   flex: 1;
 }
 
 .pi-score-label {
-  font-size: 0.7rem;
+  font-size: 0.85rem;
+  font-weight: 700;
   color: rgba(254,250,224,0.5);
   text-transform: uppercase;
   letter-spacing: 0.06em;
@@ -392,13 +394,16 @@ html, body {
   font-size: 0.6rem;
   text-transform: uppercase;
   letter-spacing: 0.08em;
-  color: rgba(254,250,224,0.45);
+  color: rgba(254,250,224,0.85);
+  background: rgba(0,0,0,0.8);
+  padding: 2px 8px;
+  border-radius: 10px;
 }
 
 .pile-count {
   font-size: 0.75rem;
-  color: rgba(254,250,224,0.6);
-  background: rgba(0,0,0,0.3);
+  color: rgba(254,250,224,0.85);
+  background: rgba(0,0,0,0.8);
   border-radius: 8px;
   padding: 1px 6px;
   min-width: 24px;
@@ -475,6 +480,8 @@ html, body {
   overflow-x: auto;
   -webkit-overflow-scrolling: touch;
   padding-bottom: 4px;
+  -webkit-user-select: none;
+  user-select: none;
 }
 
 .player-hand {
@@ -493,7 +500,7 @@ html, body {
 }
 
 .turn-status {
-  font-size: 0.8rem;
+  font-size: 1rem;
   font-style: italic;
   color: rgba(254,250,224,0.7);
   flex: 1;
@@ -572,8 +579,8 @@ html, body {
   background:
     repeating-linear-gradient(
       45deg,
-      #1a2a5a 0px, #1a2a5a 5px,
-      #0f1a3e 5px, #0f1a3e 10px
+      #6B1515 0px, #6B1515 5px,
+      #3D0A0A 5px, #3D0A0A 10px
     );
   border-color: var(--gold-dim);
   color: transparent;

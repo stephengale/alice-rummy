@@ -1,5 +1,8 @@
 // ── Constants ──────────────────────────────────────────────────────────────
-const WS_URL = 'wss://rummy-game.stephengale.partykit.dev/party/main';
+const PARTYKIT_HOST = location.hostname === 'localhost'
+  ? 'localhost:1999'
+  : 'rummy-game.stephengale.partykit.dev';
+const WS_URL = `${location.protocol === 'https:' ? 'wss' : 'ws'}://${PARTYKIT_HOST}/party/main`;
 
 const RANK_LABEL = { 1: 'A', 11: 'J', 12: 'Q', 13: 'K' };
 const SUIT_SYMBOL = { H: '♥', D: '♦', C: '♣', S: '♠' };
@@ -25,6 +28,13 @@ function showScreen(name) {
   document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
   document.getElementById(`screen-${name}`).classList.add('active');
   state.screen = name;
+
+  const music = document.getElementById('bg-music');
+  if (name === 'splash') {
+    if (!music.muted) music.play().catch(() => {});
+  } else {
+    music.pause();
+  }
 
   if (name === 'select' && (!state.ws || state.ws.readyState > WebSocket.OPEN)) {
     connect();
@@ -85,7 +95,14 @@ function handleServerMsg(msg) {
     return;
   }
 
+  if (msg.type === 'opponent_disconnected') {
+    document.getElementById('disconnect-modal').classList.remove('hidden');
+    return;
+  }
+
   if (msg.type === 'state') {
+    // Ignore state updates while the disconnect modal is showing
+    if (!document.getElementById('disconnect-modal').classList.contains('hidden')) return;
     const prev = state.game;
     state.game = msg.state;
     if (msg.state.myHand) syncHandOrder(msg.state.myHand);
@@ -733,21 +750,19 @@ function showToast(msg) {
 
 // ── Music ──────────────────────────────────────────────────────────────────
 const music = document.getElementById('bg-music');
-const muteBtn = document.getElementById('btn-mute');
 
 // Browsers allow muted autoplay — start muted, then immediately unmute
 music.muted = true;
 music.play().then(() => {
   music.muted = false;
 }).catch(() => {
-  // Autoplay still blocked (rare); fall back to first interaction
   music.muted = false;
   document.addEventListener('click', () => music.play().catch(() => {}), { once: true });
 });
 
-muteBtn.addEventListener('click', () => {
+document.getElementById('btn-mute').addEventListener('click', () => {
   music.muted = !music.muted;
-  muteBtn.textContent = music.muted ? '🔇' : '🔊';
+  document.getElementById('btn-mute').textContent = music.muted ? '🔇' : '🔊';
 });
 
 // ── Event bindings ─────────────────────────────────────────────────────────
@@ -790,13 +805,16 @@ document.getElementById('btn-end-game').addEventListener('click', () => {
 
 document.getElementById('btn-end-yes').addEventListener('click', () => {
   send({ type: 'end_game' });
-  // doEndGame() will be called when the server echoes end_game back to us
-  // If the socket is already dead, navigate locally as a fallback
   if (!state.ws || state.ws.readyState !== WebSocket.OPEN) doEndGame();
 });
 
 document.getElementById('btn-end-no').addEventListener('click', () => {
   document.getElementById('end-game-modal').classList.add('hidden');
+});
+
+document.getElementById('btn-disconnect-ok').addEventListener('click', () => {
+  document.getElementById('disconnect-modal').classList.add('hidden');
+  doEndGame();
 });
 
 document.getElementById('btn-cancel-layoff').addEventListener('click', exitLayoffMode);
