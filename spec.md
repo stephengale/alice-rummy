@@ -42,7 +42,7 @@ Describe the key paths a user takes through the app, step by step.
 3. If the other player is already connected and has selected the opposite avatar, that avatar has a glowing green border and the text "Connected" appears underneath it. That avatar is not selectable by the current player.
 4. Selecting an avatar sends a join request to the server and keeps the user on the Select screen until both players are connected.
    1. If the second player is not yet connected, display a centered message under the avatars: "Waiting for other player..."
-   2. Once the second player connects with the other avatar, both clients move to the Game screen and the round begins immediately.
+   2. Once the second player connects with the other avatar, both clients move to the Options screen.
 5. The Select screen background is `assets/select/background.png`.
 6. A **Reset** button is displayed on the Select screen. When pressed, the player is immediately returned to the Game Start screen. The WebSocket connection is closed, the server removes the player from the session, and all local state (player name, game state) is cleared. No confirmation dialog is shown.
 
@@ -51,8 +51,18 @@ Describe the key paths a user takes through the app, step by step.
 1. When the game ends, the Finish screen shows a "Play Again" button.
 2. Pressing "Play Again" sends a reset request to the server.
 3. The server clears the current match state, resets scores to zero, and returns the room to the waiting state.
-4. If both players remain connected, the server immediately begins a new round and both clients transition to the Game screen.
+4. If both players remain connected, both clients transition to the Options screen to configure the new game.
 5. If one player disconnects before the reset is applied, the remaining player stays on the Select screen and waits for the other player to join.
+
+### Flow 5: Options Screen
+
+1. After both players have selected their avatars on the Select screen, both clients are moved to the Options screen.
+2. The Options screen allows either player to configure the game before it begins. Changes made by either player are immediately reflected on both screens.
+3. **Game Mode** — a toggle with two options:
+   - **Points** — play multiple rounds until a player reaches the points target. This is the default.
+   - **Single Round** — play one round only; the player who goes out wins the game.
+4. **Points Target** — a numeric input available only when Points mode is selected. Accepts values between 1 and 200. Default is 50. The input is hidden (and its value cleared) when Single Round mode is selected.
+5. Either player may press the **Begin Game** button to start the game. Both clients transition to the Game screen and the first round begins immediately.
 
 ### Flow 4: End Game
 
@@ -78,6 +88,7 @@ The UI will be designed and optimised for portrait mode on a smart phone.
 There will be the following screens:
 - Splash - which shows the background and logo of the game along with the start button.
 - Select - which allows the user to select whether they are a player called "Tas" or "Steve" before opting to start the game.
+- Options - which allows either player to configure the game mode and points target before the game begins.
 - Game - which shows the card table where the game is played.
 - Finish - which shows the conclusion and result of the game.
 

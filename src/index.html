@@ -51,6 +51,34 @@
     </div>
   </div>
 
+  <!-- ── OPTIONS ── -->
+  <div id="screen-options" class="screen">
+    <div class="options-content">
+      <h2 class="options-heading">Game Options</h2>
+      <p class="options-sub">Either player may change settings</p>
+
+      <div class="options-section">
+        <span class="options-label">Game Mode</span>
+        <div class="mode-toggle">
+          <button class="mode-btn" data-mode="points">Points</button>
+          <button class="mode-btn" data-mode="single">Single Round</button>
+        </div>
+      </div>
+
+      <div class="options-section" id="points-target-group">
+        <label class="options-label" for="points-target">Points Target</label>
+        <div class="points-target-row">
+          <button class="points-adj-btn" id="btn-points-minus">−</button>
+          <input type="number" id="points-target" class="points-target-input" min="1" max="200" value="50">
+          <button class="points-adj-btn" id="btn-points-plus">+</button>
+        </div>
+      </div>
+
+      <button id="btn-begin-game" class="btn-primary">Begin Game</button>
+      <button id="btn-options-exit" class="btn-secondary btn-select-reset">← Back to Start</button>
+    </div>
+  </div>
+
   <!-- ── GAME ── -->
   <div id="screen-game" class="screen">
 
@@ -142,8 +170,8 @@
   <div id="disconnect-modal" class="overlay hidden">
     <div class="overlay-card modal-card">
       <div class="overlay-icon">🔌</div>
-      <h3>Opponent Disconnected</h3>
-      <p>Your opponent has left the game. The game has ended.</p>
+      <h3 id="disconnect-title">Opponent Disconnected</h3>
+      <p id="disconnect-message">Your opponent has left the game. The game has ended.</p>
       <button id="btn-disconnect-ok" class="btn-primary">Ok</button>
     </div>
   </div>

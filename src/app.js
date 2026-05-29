@@ -19,6 +19,7 @@ const state = {
   toastTimer: null,
   countdownTimer: null,
   handOrder: [],         // local display order of card IDs
+  iEndedGame: false,     // true when this client sent end_game
 };
 
 let dragState = null;
@@ -32,6 +33,12 @@ function showScreen(name) {
   const music = document.getElementById('bg-music');
   if (name === 'splash') {
     if (!music.muted) music.play().catch(() => {});
+    // Always close the WS when returning to splash so the server removes this player
+    if (state.ws) {
+      state.ws.onclose = null;
+      state.ws.close();
+      state.ws = null;
+    }
   } else {
     music.pause();
   }
@@ -91,12 +98,17 @@ function handleServerMsg(msg) {
   }
 
   if (msg.type === 'end_game') {
-    doEndGame();
+    if (state.iEndedGame) {
+      state.iEndedGame = false;
+      doEndGame();
+    } else {
+      showDisconnectModal('Game Ended', 'Your opponent has ended the game.');
+    }
     return;
   }
 
   if (msg.type === 'opponent_disconnected') {
-    document.getElementById('disconnect-modal').classList.remove('hidden');
+    showDisconnectModal('Opponent Disconnected', 'Your opponent has left the game. The game has ended.');
     return;
   }
 
@@ -119,6 +131,11 @@ function reconcileScreen(prev) {
 
   if (phase === 'finished') {
     showScreen('finish');
+    return;
+  }
+
+  if (phase === 'options') {
+    if (state.screen !== 'options') showScreen('options');
     return;
   }
 
@@ -153,6 +170,7 @@ function reconcileScreen(prev) {
 function render() {
   const s = state.screen;
   if (s === 'select')  renderSelect();
+  if (s === 'options') renderOptions();
   if (s === 'game')    renderGame();
   if (s === 'finish')  renderFinish();
 }
@@ -211,6 +229,27 @@ function renderSelect() {
   }
 
   statusEl.textContent = 'Both players connected — starting game…';
+}
+
+// ── OPTIONS screen ─────────────────────────────────────────────────────────
+function renderOptions() {
+  const g = state.game;
+  if (!g || !g.options) return;
+
+  const { mode, pointsTarget } = g.options;
+
+  document.querySelectorAll('.mode-btn').forEach(btn => {
+    btn.classList.toggle('active', btn.dataset.mode === mode);
+  });
+
+  const targetGroup = document.getElementById('points-target-group');
+  const targetInput = document.getElementById('points-target');
+  if (mode === 'points') {
+    targetGroup.style.display = '';
+    targetInput.value = pointsTarget;
+  } else {
+    targetGroup.style.display = 'none';
+  }
 }
 
 // ── GAME screen ────────────────────────────────────────────────────────────
@@ -723,20 +762,24 @@ function makeBtn(label, cls, onClick) {
   return btn;
 }
 
+// ── Disconnect / Game-ended modal ──────────────────────────────────────────
+function showDisconnectModal(title, message) {
+  document.getElementById('disconnect-title').textContent = title;
+  document.getElementById('disconnect-message').textContent = message;
+  document.getElementById('disconnect-modal').classList.remove('hidden');
+}
+
 // ── End Game ───────────────────────────────────────────────────────────────
 function doEndGame() {
   state.myName = null;
   state.game = null;
+  state.iEndedGame = false;
   state.selectedIds.clear();
   state.layoffMode = false;
   document.getElementById('end-game-modal').classList.add('hidden');
+  document.getElementById('disconnect-modal').classList.add('hidden');
   hideRoundOverlay();
-  if (state.ws) {
-    state.ws.onclose = null; // prevent auto-reconnect
-    state.ws.close();
-    state.ws = null;
-  }
-  showScreen('splash');
+  showScreen('splash'); // closes WS and clears server connection
 }
 
 // ── Toast ──────────────────────────────────────────────────────────────────
@@ -791,12 +834,7 @@ document.getElementById('btn-select-reset').addEventListener('click', () => {
   state.game = null;
   state.selectedIds.clear();
   state.layoffMode = false;
-  if (state.ws) {
-    state.ws.onclose = null; // prevent auto-reconnect
-    state.ws.close();
-    state.ws = null;
-  }
-  showScreen('splash');
+  showScreen('splash'); // closes WS and clears server connection
 });
 
 document.getElementById('btn-end-game').addEventListener('click', () => {
@@ -804,6 +842,7 @@ document.getElementById('btn-end-game').addEventListener('click', () => {
 });
 
 document.getElementById('btn-end-yes').addEventListener('click', () => {
+  state.iEndedGame = true;
   send({ type: 'end_game' });
   if (!state.ws || state.ws.readyState !== WebSocket.OPEN) doEndGame();
 });
@@ -818,6 +857,42 @@ document.getElementById('btn-disconnect-ok').addEventListener('click', () => {
 });
 
 document.getElementById('btn-cancel-layoff').addEventListener('click', exitLayoffMode);
+
+document.querySelectorAll('.mode-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    send({ type: 'set_options', options: { mode: btn.dataset.mode } });
+  });
+});
+
+document.getElementById('points-target').addEventListener('change', (e) => {
+  const val = Math.max(1, Math.min(200, parseInt(e.target.value) || 50));
+  e.target.value = val;
+  send({ type: 'set_options', options: { pointsTarget: val } });
+});
+
+document.getElementById('btn-points-minus').addEventListener('click', () => {
+  const input = document.getElementById('points-target');
+  const val = Math.max(1, (parseInt(input.value) || 50) - 5);
+  input.value = val;
+  send({ type: 'set_options', options: { pointsTarget: val } });
+});
+
+document.getElementById('btn-points-plus').addEventListener('click', () => {
+  const input = document.getElementById('points-target');
+  const val = Math.min(200, (parseInt(input.value) || 50) + 5);
+  input.value = val;
+  send({ type: 'set_options', options: { pointsTarget: val } });
+});
+
+document.getElementById('btn-begin-game').addEventListener('click', () => {
+  send({ type: 'begin_game' });
+});
+
+document.getElementById('btn-options-exit').addEventListener('click', () => {
+  state.iEndedGame = true;
+  send({ type: 'end_game' });
+  if (!state.ws || state.ws.readyState !== WebSocket.OPEN) doEndGame();
+});
 
 document.getElementById('btn-new-game').addEventListener('click', () => {
   if (state.ws && state.ws.readyState === WebSocket.OPEN) {

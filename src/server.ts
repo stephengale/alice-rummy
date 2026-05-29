@@ -27,18 +27,24 @@ interface RoundState {
   dealerIndex: number;
 }
 
+interface GameOptions {
+  mode: "points" | "single";
+  pointsTarget: number;
+}
+
 interface GameState {
-  phase: "waiting" | "playing" | "round_over" | "finished";
+  phase: "waiting" | "options" | "playing" | "round_over" | "finished";
   scores: Record<string, number>;
   round: RoundState | null;
   winner: string | null;
   connections: Record<string, string>; // playerName -> connectionId
   roundNumber: number;
   lastRoundSummary: { winner: string | null; points: number; isDraw: boolean } | null;
+  options: GameOptions;
 }
 
 const PLAYERS = ["Tas", "Steve"] as const;
-const WIN_SCORE = 100;
+const DEFAULT_OPTIONS: GameOptions = { mode: "points", pointsTarget: 50 };
 const ROUND_OVER_DELAY_MS = 5000;
 
 export default class RummyServer implements Party.Server {
@@ -53,6 +59,7 @@ export default class RummyServer implements Party.Server {
       connections: {},
       roundNumber: 0,
       lastRoundSummary: null,
+      options: { ...DEFAULT_OPTIONS },
     };
   }
 
@@ -64,7 +71,7 @@ export default class RummyServer implements Party.Server {
     const player = this.playerFor(conn.id);
     if (player) {
       delete this.state.connections[player];
-      if (this.state.phase === "playing" || this.state.phase === "round_over") {
+      if (this.state.phase === "playing" || this.state.phase === "round_over" || this.state.phase === "options") {
         for (const c of this.room.getConnections()) {
           c.send(JSON.stringify({ type: "opponent_disconnected" }));
         }
@@ -98,6 +105,10 @@ export default class RummyServer implements Party.Server {
         return this.handleDoneAction(sender, player);
       case "discard":
         return this.handleDiscard(sender, player, msg.cardId as string);
+      case "set_options":
+        return this.handleSetOptions(sender, player, msg.options as Partial<GameOptions>);
+      case "begin_game":
+        return this.handleBeginGame(player);
       case "reset":
         return this.handleReset(sender, player);
       case "end_game":
@@ -217,12 +228,7 @@ export default class RummyServer implements Party.Server {
     meld.cards = combined;
     meld.type = meldType;
 
-    if (r.hands[player].length === 0) {
-      // Per rules: can only go out via layoff if also melded this turn
-      if (r.hasMeldedThisTurn) return this.playerGoesOut(player);
-      // Otherwise hand is empty but they can't go out — edge case, go out anyway
-      return this.playerGoesOut(player);
-    }
+    if (r.hands[player].length === 0) return this.playerGoesOut(player);
     this.broadcast();
   }
 
@@ -267,12 +273,30 @@ export default class RummyServer implements Party.Server {
     this.broadcast();
   }
 
+  private handleSetOptions(conn: Party.Connection, player: string | null, options: Partial<GameOptions>) {
+    if (!player || this.state.phase !== "options") return;
+    if (options.mode === "points" || options.mode === "single") {
+      this.state.options.mode = options.mode;
+    }
+    if (options.pointsTarget !== undefined) {
+      this.state.options.pointsTarget = Math.max(1, Math.min(200, Math.round(options.pointsTarget)));
+    }
+    this.broadcast();
+  }
+
+  private handleBeginGame(player: string | null) {
+    if (!player || this.state.phase !== "options") return;
+    if (Object.keys(this.state.connections).length < 2) return;
+    this.startRound();
+  }
+
   // --- Game logic ---
 
   private checkAutoStart() {
     const connected = Object.keys(this.state.connections).length;
     if (connected === 2 && this.state.phase === "waiting") {
-      this.startRound();
+      this.state.phase = "options";
+      this.broadcast();
     }
   }
 
@@ -317,7 +341,11 @@ export default class RummyServer implements Party.Server {
     this.state.scores[player] += points;
     this.state.lastRoundSummary = { winner: player, points, isDraw: false };
 
-    if (this.state.scores[player] >= WIN_SCORE) {
+    const gameOver =
+      this.state.options.mode === "single" ||
+      this.state.scores[player] >= this.state.options.pointsTarget;
+
+    if (gameOver) {
       this.state.winner = player;
       this.state.phase = "finished";
       this.broadcast();
@@ -326,9 +354,7 @@ export default class RummyServer implements Party.Server {
       this.broadcast();
       setTimeout(() => {
         if (this.state.phase === "round_over") {
-          this.state.phase = "waiting";
-          this.broadcast();
-          this.checkAutoStart();
+          this.startRound();
         }
       }, ROUND_OVER_DELAY_MS);
     }
@@ -340,9 +366,7 @@ export default class RummyServer implements Party.Server {
     this.broadcast();
     setTimeout(() => {
       if (this.state.phase === "round_over") {
-        this.state.phase = "waiting";
-        this.broadcast();
-        this.checkAutoStart();
+        this.startRound();
       }
     }, ROUND_OVER_DELAY_MS);
   }
@@ -359,6 +383,7 @@ export default class RummyServer implements Party.Server {
       connections: {},
       roundNumber: 0,
       lastRoundSummary: null,
+      options: { ...DEFAULT_OPTIONS },
     };
   }
 
@@ -372,6 +397,7 @@ export default class RummyServer implements Party.Server {
       connections: this.state.connections,
       roundNumber: 0,
       lastRoundSummary: null,
+      options: { ...this.state.options }, // preserve options from previous game
     };
     this.broadcast();
     this.checkAutoStart();
@@ -429,7 +455,7 @@ export default class RummyServer implements Party.Server {
 
   private viewFor(connId: string): Record<string, unknown> {
     const player = this.playerFor(connId);
-    const { phase, scores, winner, roundNumber, round, lastRoundSummary } = this.state;
+    const { phase, scores, winner, roundNumber, round, lastRoundSummary, options } = this.state;
     const connectedPlayers = Object.keys(this.state.connections);
 
     const base: Record<string, unknown> = {
@@ -440,6 +466,7 @@ export default class RummyServer implements Party.Server {
       connectedPlayers,
       myName: player,
       lastRoundSummary,
+      options,
     };
 
     if (!round || !player) return base;
