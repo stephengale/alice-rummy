@@ -374,7 +374,7 @@ function renderMelds() {
 }
 
 function renderPlayerHand() {
-  if (dragState?.moved) return; // don't interrupt an active drag
+  if (dragState) return; // don't interrupt an active drag
 
   const g = state.game;
   const el = document.getElementById('player-hand');
@@ -587,26 +587,63 @@ function syncHandOrder(serverHand) {
   state.handOrder = [...kept, ...added];
 }
 
-// ── Hand drag-to-reorder ────────────────────────────────────────────────────
+// ── Hand drag-to-reorder (long press) ─────────────────────────────────────
+const LONG_PRESS_MS = 400;
+
 function addDragToCard(cardEl, cardId) {
-  cardEl.addEventListener('pointerdown', (e) => startDrag(e, cardId), { passive: true });
+  cardEl.addEventListener('pointerdown', (e) => onCardPointerDown(e, cardId), { passive: true });
 }
 
-function startDrag(e, cardId) {
+function onCardPointerDown(e, cardId) {
+  let cancelled = false;
+
+  const cancel = () => {
+    if (cancelled) return;
+    cancelled = true;
+    clearTimeout(timer);
+    document.removeEventListener('pointermove', onEarlyMove);
+    document.removeEventListener('pointerup', cancel);
+    document.removeEventListener('pointercancel', cancel);
+  };
+
+  const onEarlyMove = (moveE) => {
+    if (Math.hypot(moveE.clientX - e.clientX, moveE.clientY - e.clientY) > 8) cancel();
+  };
+
+  const timer = setTimeout(() => {
+    cancel();
+    startDrag(cardId, e.clientX, e.clientY);
+  }, LONG_PRESS_MS);
+
+  document.addEventListener('pointermove', onEarlyMove, { passive: true });
+  document.addEventListener('pointerup', cancel);
+  document.addEventListener('pointercancel', cancel);
+}
+
+function startDrag(cardId, clientX, clientY) {
   const handEl = document.getElementById('player-hand');
   const cardEl = handEl.querySelector(`[data-card-id="${cardId}"]`);
   if (!cardEl) return;
+
   const rect = cardEl.getBoundingClientRect();
-  dragState = {
-    cardId,
-    startX: e.clientX,
-    startY: e.clientY,
-    offsetX: e.clientX - rect.left,
-    offsetY: e.clientY - rect.top,
-    moved: false,
-    ghost: null,
-    lastInsertBefore: undefined,
-  };
+  const offsetX = clientX - rect.left;
+  const offsetY = clientY - rect.top;
+
+  const ghost = cardEl.cloneNode(true);
+  ghost.style.cssText = `
+    position:fixed; pointer-events:none; z-index:1000;
+    opacity:0.9; transform:rotate(4deg) scale(1.08);
+    width:${cardEl.offsetWidth}px; height:${cardEl.offsetHeight}px;
+    left:${clientX - offsetX}px;
+    top:${clientY - offsetY}px;
+    box-shadow:0 8px 24px rgba(0,0,0,0.55);
+  `;
+  document.body.appendChild(ghost);
+  cardEl.style.opacity = '0.25';
+  handEl.closest('.hand-scroll-wrap').style.overflowX = 'hidden';
+
+  dragState = { cardId, offsetX, offsetY, ghost, lastInsertBefore: undefined };
+
   document.addEventListener('pointermove', onDragMove, { passive: true });
   document.addEventListener('pointerup', onDragEnd);
   document.addEventListener('pointercancel', onDragEnd);
@@ -614,33 +651,6 @@ function startDrag(e, cardId) {
 
 function onDragMove(e) {
   if (!dragState) return;
-  const dx = e.clientX - dragState.startX;
-  const dy = e.clientY - dragState.startY;
-
-  if (!dragState.moved) {
-    if (Math.hypot(dx, dy) < 8) return;
-    dragState.moved = true;
-
-    const handEl = document.getElementById('player-hand');
-    const cardEl = handEl.querySelector(`[data-card-id="${dragState.cardId}"]`);
-    if (!cardEl) return;
-
-    const ghost = cardEl.cloneNode(true);
-    ghost.style.cssText = `
-      position:fixed; pointer-events:none; z-index:1000;
-      opacity:0.9; transform:rotate(4deg) scale(1.08);
-      width:${cardEl.offsetWidth}px; height:${cardEl.offsetHeight}px;
-      left:${e.clientX - dragState.offsetX}px;
-      top:${e.clientY - dragState.offsetY}px;
-      box-shadow:0 8px 24px rgba(0,0,0,0.55);
-    `;
-    document.body.appendChild(ghost);
-    dragState.ghost = ghost;
-    cardEl.style.opacity = '0.25';
-    handEl.closest('.hand-scroll-wrap').style.overflowX = 'hidden';
-  }
-
-  if (!dragState.ghost) return;
 
   dragState.ghost.style.left = `${e.clientX - dragState.offsetX}px`;
   dragState.ghost.style.top  = `${e.clientY - dragState.offsetY}px`;
@@ -681,20 +691,21 @@ function onDragEnd() {
 
   if (!dragState) return;
 
-  if (dragState.moved) {
-    dragState.ghost?.remove();
-    const handEl = document.getElementById('player-hand');
-    handEl.closest('.hand-scroll-wrap').style.overflowX = '';
-    state.handOrder = [...handEl.querySelectorAll('.card[data-card-id]')]
-      .map(c => c.dataset.cardId);
-    // Swallow the synthetic click that follows pointerup
-    document.addEventListener('click', e => e.stopPropagation(), { capture: true, once: true });
-    dragState = null;
-    renderPlayerHand();
-    renderActionBar();
-  } else {
-    dragState = null;
-  }
+  dragState.ghost?.remove();
+  const handEl = document.getElementById('player-hand');
+  handEl.closest('.hand-scroll-wrap').style.overflowX = '';
+
+  const cardEl = handEl.querySelector(`[data-card-id="${dragState.cardId}"]`);
+  if (cardEl) cardEl.style.opacity = '';
+
+  state.handOrder = [...handEl.querySelectorAll('.card[data-card-id]')]
+    .map(c => c.dataset.cardId);
+
+  // Swallow the synthetic click that follows pointerup so cards aren't selected/discarded
+  document.addEventListener('click', e => e.stopPropagation(), { capture: true, once: true });
+  dragState = null;
+  renderPlayerHand();
+  renderActionBar();
 }
 
 // ── Selection ──────────────────────────────────────────────────────────────
