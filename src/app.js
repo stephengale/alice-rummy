@@ -701,10 +701,11 @@ function onDragEnd() {
   state.handOrder = [...handEl.querySelectorAll('.card[data-card-id]')]
     .map(c => c.dataset.cardId);
 
-  // Swallow a synthetic click only if it lands on a card in the hand, not on action buttons
-  const hand = document.getElementById('player-hand');
+  // Suppress ghost clicks that iOS fires immediately after pointerup (~<100 ms).
+  // Intentional taps always arrive later, so the time gate lets them through.
+  const dragEndTime = Date.now();
   document.addEventListener('click', (e) => {
-    if (hand?.contains(e.target)) e.stopPropagation();
+    if (Date.now() - dragEndTime < 100) e.stopPropagation();
   }, { capture: true, once: true });
   dragState = null;
   renderPlayerHand();
