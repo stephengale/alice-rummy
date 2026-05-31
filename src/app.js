@@ -701,8 +701,11 @@ function onDragEnd() {
   state.handOrder = [...handEl.querySelectorAll('.card[data-card-id]')]
     .map(c => c.dataset.cardId);
 
-  // Swallow the synthetic click that follows pointerup so cards aren't selected/discarded
-  document.addEventListener('click', e => e.stopPropagation(), { capture: true, once: true });
+  // Swallow a synthetic click only if it lands on a card in the hand, not on action buttons
+  const hand = document.getElementById('player-hand');
+  document.addEventListener('click', (e) => {
+    if (hand?.contains(e.target)) e.stopPropagation();
+  }, { capture: true, once: true });
   dragState = null;
   renderPlayerHand();
   renderActionBar();
