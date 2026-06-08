@@ -44,7 +44,7 @@ interface GameState {
 }
 
 const PLAYERS = ["Tas", "Steve"] as const;
-const DEFAULT_OPTIONS: GameOptions = { mode: "points", pointsTarget: 50 };
+const DEFAULT_OPTIONS: GameOptions = { mode: "single", pointsTarget: 50 };
 const ROUND_OVER_DELAY_MS = 5000;
 
 export default class RummyServer implements Party.Server {
