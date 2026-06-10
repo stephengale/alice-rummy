@@ -18,6 +18,7 @@ const state = {
   layoffMode: false,
   toastTimer: null,
   countdownTimer: null,
+  pingInterval: null,
   handOrder: [],         // local display order of card IDs
   iEndedGame: false,     // true when this client sent end_game
 };
@@ -34,6 +35,8 @@ function showScreen(name) {
   if (name === 'splash') {
     if (!music.muted) music.play().catch(() => {});
     // Always close the WS when returning to splash so the server removes this player
+    clearInterval(state.pingInterval);
+    state.pingInterval = null;
     if (state.ws) {
       state.ws.onclose = null;
       state.ws.close();
@@ -62,6 +65,8 @@ function connect() {
     if (state.myName) {
       send({ type: 'join', player: state.myName });
     }
+    clearInterval(state.pingInterval);
+    state.pingInterval = setInterval(() => send({ type: 'ping' }), 30000);
   };
 
   ws.onmessage = (ev) => {
@@ -71,6 +76,8 @@ function connect() {
   };
 
   ws.onclose = () => {
+    clearInterval(state.pingInterval);
+    state.pingInterval = null;
     setTimeout(() => {
       if (state.myName) connect(); // auto-reconnect if we had a player name
     }, 2000);

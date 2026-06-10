@@ -105,6 +105,8 @@ export default class RummyServer implements Party.Server {
         return this.handleDoneAction(sender, player);
       case "discard":
         return this.handleDiscard(sender, player, msg.cardId as string);
+      case "ping":
+        return; // keep-alive — no response needed
       case "set_options":
         return this.handleSetOptions(sender, player, msg.options as Partial<GameOptions>);
       case "begin_game":
