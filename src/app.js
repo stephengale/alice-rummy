@@ -837,12 +837,17 @@ const music = document.getElementById('bg-music');
 
 // Browsers allow muted autoplay — start muted, then immediately unmute
 music.muted = true;
-music.play().then(() => {
-  music.muted = false;
-}).catch(() => {
-  music.muted = false;
-  document.addEventListener('click', () => music.play().catch(() => {}), { once: true });
-});
+music.play()
+  .then(() => { music.muted = false; })
+  .catch(() => { music.muted = false; });
+
+// iOS may silently block audible playback even after muted autoplay succeeds.
+// As a fallback, start music on the first tap while still on the splash screen.
+document.addEventListener('click', () => {
+  if (state.screen === 'splash' && music.paused && !music.muted) {
+    music.play().catch(() => {});
+  }
+}, { once: true });
 
 document.getElementById('btn-mute').addEventListener('click', () => {
   music.muted = !music.muted;
