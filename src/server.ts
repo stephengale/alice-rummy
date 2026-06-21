@@ -47,8 +47,11 @@ const PLAYERS = ["Tas", "Steve"] as const;
 const DEFAULT_OPTIONS: GameOptions = { mode: "single", pointsTarget: 50 };
 const ROUND_OVER_DELAY_MS = 5000;
 
+const RECONNECT_GRACE_MS = 60_000;
+
 export default class RummyServer implements Party.Server {
   private state: GameState;
+  private disconnectTimers = new Map<string, ReturnType<typeof setTimeout>>();
 
   constructor(readonly room: Party.Room) {
     this.state = {
@@ -69,18 +72,37 @@ export default class RummyServer implements Party.Server {
 
   onClose(conn: Party.Connection) {
     const player = this.playerFor(conn.id);
-    if (player) {
-      delete this.state.connections[player];
-      if (this.state.phase === "playing" || this.state.phase === "round_over" || this.state.phase === "options") {
-        for (const c of this.room.getConnections()) {
-          c.send(JSON.stringify({ type: "opponent_disconnected" }));
+    if (!player) return;
+
+    delete this.state.connections[player];
+
+    if (
+      this.state.phase === "playing" ||
+      this.state.phase === "round_over" ||
+      this.state.phase === "options"
+    ) {
+      // Give the player time to reconnect (e.g. after iOS app-switch) before ending the game
+      const timer = setTimeout(() => {
+        this.disconnectTimers.delete(player);
+        if (!this.state.connections[player]) {
+          for (const c of this.room.getConnections()) {
+            c.send(JSON.stringify({ type: "opponent_disconnected" }));
+          }
+          this.state.phase = "waiting";
+          this.state.round = null;
+          this.state.lastRoundSummary = null;
+          this.broadcast();
         }
-        this.state.phase = "waiting";
-        this.state.round = null;
-        this.state.lastRoundSummary = null;
+      }, RECONNECT_GRACE_MS);
+
+      this.disconnectTimers.set(player, timer);
+
+      for (const c of this.room.getConnections()) {
+        c.send(JSON.stringify({ type: "reconnecting", player }));
       }
-      this.broadcast();
     }
+
+    this.broadcast();
   }
 
   onMessage(message: string | ArrayBuffer, sender: Party.Connection) {
@@ -133,6 +155,16 @@ export default class RummyServer implements Party.Server {
     const previousPlayer = this.playerFor(conn.id);
     if (previousPlayer && previousPlayer !== playerName) {
       delete this.state.connections[previousPlayer];
+    }
+
+    // Cancel any pending disconnect timer — player has reconnected in time
+    const timer = this.disconnectTimers.get(playerName);
+    if (timer !== undefined) {
+      clearTimeout(timer);
+      this.disconnectTimers.delete(playerName);
+      for (const c of this.room.getConnections()) {
+        c.send(JSON.stringify({ type: "reconnected", player: playerName }));
+      }
     }
 
     this.state.connections[playerName] = conn.id;

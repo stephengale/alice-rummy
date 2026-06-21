@@ -78,9 +78,11 @@ function connect() {
   ws.onclose = () => {
     clearInterval(state.pingInterval);
     state.pingInterval = null;
+    // Skip the delay if the page is visible — reconnect straight away
+    const delay = document.visibilityState === 'visible' ? 500 : 2000;
     setTimeout(() => {
-      if (state.myName) connect(); // auto-reconnect if we had a player name
-    }, 2000);
+      if (state.myName) connect();
+    }, delay);
   };
 
   ws.onerror = () => ws.close();
@@ -114,7 +116,24 @@ function handleServerMsg(msg) {
     return;
   }
 
+  if (msg.type === 'reconnecting') {
+    const opponentName = msg.player !== state.myName ? msg.player : null;
+    if (opponentName) {
+      document.getElementById('reconnecting-title').textContent = `${opponentName} disconnected`;
+      document.getElementById('reconnecting-message').textContent =
+        `Waiting for ${opponentName} to reconnect… (up to 60 seconds)`;
+      document.getElementById('reconnecting-overlay').classList.remove('hidden');
+    }
+    return;
+  }
+
+  if (msg.type === 'reconnected') {
+    document.getElementById('reconnecting-overlay').classList.add('hidden');
+    return;
+  }
+
   if (msg.type === 'opponent_disconnected') {
+    document.getElementById('reconnecting-overlay').classList.add('hidden');
     showDisconnectModal('Opponent Disconnected', 'Your opponent has left the game. The game has ended.');
     return;
   }
@@ -914,6 +933,15 @@ document.getElementById('btn-options-exit').addEventListener('click', () => {
   state.iEndedGame = true;
   send({ type: 'end_game' });
   if (!state.ws || state.ws.readyState !== WebSocket.OPEN) doEndGame();
+});
+
+// Reconnect immediately when iOS brings the app back to the foreground
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'visible' && state.myName) {
+    if (!state.ws || state.ws.readyState !== WebSocket.OPEN) {
+      connect();
+    }
+  }
 });
 
 document.getElementById('btn-new-game').addEventListener('click', () => {
