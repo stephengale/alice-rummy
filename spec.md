@@ -62,7 +62,8 @@ Describe the key paths a user takes through the app, step by step.
    - **Points** — play multiple rounds until a player reaches the points target. This is the default.
    - **Single Round** — play one round only; the player who goes out wins the game.
 4. **Points Target** — a numeric input available only when Points mode is selected. Accepts values between 1 and 200. Default is 50. The input is hidden (and its value cleared) when Single Round mode is selected.
-5. Either player may press the **Begin Game** button to start the game. Both clients transition to the Game screen and the first round begins immediately.
+5. **Tas Rules** — an On/Off toggle (default Off). When enabled, alternative game rules apply (see [Tas Rules](#tas-rules) below).
+6. Either player may press the **Begin Game** button to start the game. Both clients transition to the Game screen and the first round begins immediately.
 
 ### Flow 4: End Game
 
@@ -138,6 +139,13 @@ When a player goes out, the round ends immediately. The **losing player's** rema
 | Jack, Queen, King | 10 |
 
 The winning player scores those points. The first player to reach **100 points** across multiple rounds wins the game.
+
+### Tas Rules
+
+When the **Tas Rules** option is enabled on the Options screen, the following rule changes apply for the duration of that game:
+
+1. **Runs only** — set-type melds (three or four cards of the same rank) are not allowed. Only run-type melds (three or more consecutive cards of the same suit) may be played.
+2. **One meld in hand at a time** — a player may not end their action phase (proceed to the discard step) while their hand contains two or more non-overlapping valid melds. They must play at least one meld to reduce their hand's meld count to one or zero before pressing Done. This is enforced by the server, which returns an error if the condition is not met.
 
 ### Stock Exhaustion
 

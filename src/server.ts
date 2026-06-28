@@ -30,6 +30,7 @@ interface RoundState {
 interface GameOptions {
   mode: "points" | "single";
   pointsTarget: number;
+  tasRules: boolean;
 }
 
 interface GameState {
@@ -44,7 +45,7 @@ interface GameState {
 }
 
 const PLAYERS = ["Tas", "Steve"] as const;
-const DEFAULT_OPTIONS: GameOptions = { mode: "single", pointsTarget: 50 };
+const DEFAULT_OPTIONS: GameOptions = { mode: "single", pointsTarget: 50, tasRules: false };
 const ROUND_OVER_DELAY_MS = 5000;
 
 const RECONNECT_GRACE_MS = 60_000;
@@ -225,6 +226,9 @@ export default class RummyServer implements Party.Server {
     if (!meldType) {
       return conn.send(JSON.stringify({ type: "error", message: "Invalid meld — must be a set (3-4 same rank) or run (3+ consecutive same suit)" }));
     }
+    if (this.state.options.tasRules && meldType === "set") {
+      return conn.send(JSON.stringify({ type: "error", message: "Tas Rules: sets are not allowed — runs only!" }));
+    }
 
     r.hands[player] = r.hands[player].filter((c) => !cardIds.includes(c.id));
     r.melds.push({ id: `m${Date.now()}${Math.random().toString(36).slice(2)}`, type: meldType, cards });
@@ -273,6 +277,9 @@ export default class RummyServer implements Party.Server {
     if (r.currentTurn !== player || r.turnPhase !== "action") {
       return conn.send(JSON.stringify({ type: "error", message: "Not in action phase" }));
     }
+    if (this.state.options.tasRules && this.runMeldCapacity(r.hands[player]) >= 2) {
+      return conn.send(JSON.stringify({ type: "error", message: "Tas Rules: you have multiple melds in hand — play one before proceeding!" }));
+    }
     r.turnPhase = "discard";
     this.broadcast();
   }
@@ -314,6 +321,9 @@ export default class RummyServer implements Party.Server {
     }
     if (options.pointsTarget !== undefined) {
       this.state.options.pointsTarget = Math.max(1, Math.min(200, Math.round(options.pointsTarget)));
+    }
+    if (typeof options.tasRules === "boolean") {
+      this.state.options.tasRules = options.tasRules;
     }
     this.broadcast();
   }
@@ -438,6 +448,29 @@ export default class RummyServer implements Party.Server {
   }
 
   // --- Validation ---
+
+  // Returns the number of non-overlapping runs of 3+ that can be formed from the hand.
+  // Used by Tas Rules to detect when a player holds multiple melds.
+  private runMeldCapacity(hand: Card[]): number {
+    const bySuit: Record<string, number[]> = {};
+    for (const card of hand) {
+      (bySuit[card.suit] ??= []).push(card.rank);
+    }
+    let capacity = 0;
+    for (const ranks of Object.values(bySuit)) {
+      ranks.sort((a, b) => a - b);
+      let seqLen = 1;
+      for (let i = 1; i <= ranks.length; i++) {
+        if (i < ranks.length && ranks[i] === ranks[i - 1] + 1) {
+          seqLen++;
+        } else {
+          capacity += Math.floor(seqLen / 3);
+          seqLen = 1;
+        }
+      }
+    }
+    return capacity;
+  }
 
   private validateMeld(cards: Card[]): "set" | "run" | null {
     if (cards.length < 3) return null;

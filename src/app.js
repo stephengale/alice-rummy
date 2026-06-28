@@ -262,10 +262,14 @@ function renderOptions() {
   const g = state.game;
   if (!g || !g.options) return;
 
-  const { mode, pointsTarget } = g.options;
+  const { mode, pointsTarget, tasRules } = g.options;
 
   document.querySelectorAll('.mode-btn').forEach(btn => {
     btn.classList.toggle('active', btn.dataset.mode === mode);
+  });
+
+  document.querySelectorAll('.tas-rules-btn').forEach(btn => {
+    btn.classList.toggle('active', (btn.dataset.tas === 'on') === !!tasRules);
   });
 
   const targetGroup = document.getElementById('points-target-group');
@@ -907,6 +911,12 @@ document.getElementById('btn-cancel-layoff').addEventListener('click', exitLayof
 document.querySelectorAll('.mode-btn').forEach(btn => {
   btn.addEventListener('click', () => {
     send({ type: 'set_options', options: { mode: btn.dataset.mode } });
+  });
+});
+
+document.querySelectorAll('.tas-rules-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    send({ type: 'set_options', options: { tasRules: btn.dataset.tas === 'on' } });
   });
 });
 
