@@ -839,6 +839,33 @@ function showToast(msg) {
 // ── Music ──────────────────────────────────────────────────────────────────
 const music = document.getElementById('bg-music');
 
+const MUSIC_TRACKS = {
+  funderland: '../assets/splash/music.mp3',
+  'country-house': '../assets/splash/music-country-house.mp3',
+};
+
+state.musicTrack = 'funderland';
+
+function setMusicTrack(track) {
+  state.musicTrack = track;
+  const wasMuted = music.muted;
+  music.pause();
+  music.src = MUSIC_TRACKS[track];
+  music.load();
+  music.muted = wasMuted;
+  if (!wasMuted) music.play().catch(() => {});
+  renderMusicModal();
+}
+
+function renderMusicModal() {
+  document.querySelectorAll('.music-onoff-btn').forEach(btn => {
+    btn.classList.toggle('active', (btn.dataset.on === 'true') === !music.muted);
+  });
+  document.querySelectorAll('.music-track-btn').forEach(btn => {
+    btn.classList.toggle('active', btn.dataset.track === state.musicTrack);
+  });
+}
+
 // Browsers allow muted autoplay — start muted, then immediately unmute
 music.muted = true;
 music.play()
@@ -853,9 +880,26 @@ document.addEventListener('click', () => {
   }
 }, { once: true });
 
-document.getElementById('btn-mute').addEventListener('click', () => {
-  music.muted = !music.muted;
-  document.getElementById('btn-mute').textContent = music.muted ? '🔇' : '🔊';
+document.getElementById('btn-music').addEventListener('click', () => {
+  renderMusicModal();
+  document.getElementById('music-modal').classList.remove('hidden');
+});
+
+document.getElementById('btn-music-close').addEventListener('click', () => {
+  document.getElementById('music-modal').classList.add('hidden');
+});
+
+document.querySelectorAll('.music-onoff-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    const turnOn = btn.dataset.on === 'true';
+    music.muted = !turnOn;
+    if (turnOn && music.paused) music.play().catch(() => {});
+    renderMusicModal();
+  });
+});
+
+document.querySelectorAll('.music-track-btn').forEach(btn => {
+  btn.addEventListener('click', () => setMusicTrack(btn.dataset.track));
 });
 
 // ── Event bindings ─────────────────────────────────────────────────────────

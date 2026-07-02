@@ -25,7 +25,7 @@
       </div>
     </div>
     <button id="btn-start" class="btn-primary">Start Game</button>
-    <button id="btn-mute" class="btn-mute" title="Toggle music">🔊</button>
+    <button id="btn-music" class="btn-music" title="Music options">♪</button>
   </div>
 
   <!-- ── SELECT ── -->
@@ -171,6 +171,29 @@
         <button id="btn-end-yes" class="btn-primary btn-danger">Yes, End Game</button>
         <button id="btn-end-no" class="btn-secondary">No, Keep Playing</button>
       </div>
+    </div>
+  </div>
+
+  <!-- ── MUSIC MODAL ── -->
+  <div id="music-modal" class="overlay hidden">
+    <div class="overlay-card modal-card">
+      <div class="overlay-icon">♪</div>
+      <h3>Music</h3>
+      <div class="mode-toggle">
+        <button class="mode-btn music-onoff-btn" data-on="true">On</button>
+        <button class="mode-btn music-onoff-btn" data-on="false">Off</button>
+      </div>
+      <div class="music-tracks">
+        <div class="music-track-row">
+          <button class="music-track-btn" data-track="funderland">Funderland</button>
+          <a class="music-download-btn" href="../assets/splash/music.mp3" download="Funderland.mp3" title="Download Funderland">⬇</a>
+        </div>
+        <div class="music-track-row">
+          <button class="music-track-btn" data-track="country-house">Country House</button>
+          <a class="music-download-btn" href="../assets/splash/music-country-house.mp3" download="Country House.mp3" title="Download Country House">⬇</a>
+        </div>
+      </div>
+      <button id="btn-music-close" class="btn-secondary">Close</button>
     </div>
   </div>
 
