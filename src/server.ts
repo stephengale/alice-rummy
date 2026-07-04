@@ -231,7 +231,7 @@ export default class RummyServer implements Party.Server {
     }
 
     r.hands[player] = r.hands[player].filter((c) => !cardIds.includes(c.id));
-    r.melds.push({ id: `m${Date.now()}${Math.random().toString(36).slice(2)}`, type: meldType, cards });
+    r.melds.push({ id: `m${Date.now()}${Math.random().toString(36).slice(2)}`, type: meldType, cards: this.sortMeldCards(meldType, cards) });
     r.hasMeldedThisTurn = true;
 
     if (r.hands[player].length === 0) return this.playerGoesOut(player);
@@ -263,7 +263,7 @@ export default class RummyServer implements Party.Server {
     }
 
     r.hands[player] = r.hands[player].filter((c) => !cardIds.includes(c.id));
-    meld.cards = combined;
+    meld.cards = this.sortMeldCards(meldType, combined);
     meld.type = meldType;
 
     if (r.hands[player].length === 0) return this.playerGoesOut(player);
@@ -445,6 +445,16 @@ export default class RummyServer implements Party.Server {
     };
     this.broadcast();
     this.checkAutoStart();
+  }
+
+  // --- Sorting ---
+
+  private sortMeldCards(type: "set" | "run", cards: Card[]): Card[] {
+    if (type === "run") {
+      return [...cards].sort((a, b) => a.rank - b.rank);
+    }
+    const SUIT_ORDER: Record<string, number> = { H: 0, D: 1, C: 2, S: 3 };
+    return [...cards].sort((a, b) => (SUIT_ORDER[a.suit] ?? 0) - (SUIT_ORDER[b.suit] ?? 0));
   }
 
   // --- Validation ---
