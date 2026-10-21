@@ -78,7 +78,9 @@ Describe the key paths a user takes through the app, step by step.
 
 ## Tech Stack
 
-The online server should use PartyKit and be implemented in TypeScript.
+The online server is a Cloudflare Worker using PartyServer (the successor to PartyKit, whose hosting shut down in October 2026), implemented in TypeScript in `src/server.ts`. The game room is a single Durable Object, at `/parties/main/main`.
+
+The same Worker serves the client: `src/` is published as static assets (configured in `wrangler.jsonc`), with `src/.assetsignore` keeping the server source out of it. The page and the room therefore share one host, and the client connects to its own host rather than a hard-coded server address.
 
 The client will be a Single Page Application (SPA) written in HTML, CSS and JavaScript
 
@@ -157,7 +159,7 @@ The player who did not deal goes first. The deal alternates between rounds.
 
 ## Non-Functional Requirements
 
-The PartyKit URL will be "rummy-game.stephengale.partykit.dev"
+The game is hosted at "https://alice-rummy.exploding-entities.workers.dev". `npm run dev` runs it locally at http://localhost:1999 (page and room together); `npm run deploy` publishes it with `wrangler deploy`.
 
 The project source shall be in a sub-directory called src.
 The CSS and JavaScript files should be external to the HTML file. There will be an assets directory alongside src where game images will be located and referenced from.

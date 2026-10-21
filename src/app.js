@@ -1,8 +1,7 @@
 // ── Constants ──────────────────────────────────────────────────────────────
-const PARTYKIT_HOST = location.hostname === 'localhost'
-  ? 'localhost:1999'
-  : 'rummy-game.stephengale.partykit.dev';
-const WS_URL = `${location.protocol === 'https:' ? 'wss' : 'ws'}://${PARTYKIT_HOST}/party/main`;
+// One Cloudflare Worker serves this page and the game room, locally
+// (`npm run dev`) and live, so the room is always on the page's own host.
+const WS_URL = `${location.protocol === 'https:' ? 'wss' : 'ws'}://${location.host}/parties/main/main`;
 
 const RANK_LABEL = { 1: 'A', 11: 'J', 12: 'Q', 13: 'K' };
 const SUIT_SYMBOL = { H: '♥', D: '♦', C: '♣', S: '♠' };

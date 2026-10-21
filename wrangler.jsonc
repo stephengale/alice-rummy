@@ -1,0 +1,23 @@
+// Cloudflare Workers config. One Worker serves the page (static files from
+// src/) and the game room.
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "alice-rummy",
+  "main": "src/server.ts",
+  "compatibility_date": "2026-10-01",
+  "compatibility_flags": ["nodejs_compat"],
+
+  // The page has no build step, so src/ is served as it is; src/.assetsignore
+  // keeps the server's source out of it.
+  "assets": { "directory": "./src" },
+
+  // The room is one Durable Object. The binding is named Main so it lives at
+  // /parties/main/<room-name>.
+  "durable_objects": {
+    "bindings": [{ "name": "Main", "class_name": "RummyServer" }]
+  },
+
+  // Wrangler does not create Durable Object classes by itself: add a new
+  // entry whenever a class is added, renamed or removed. Never edit an old one.
+  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["RummyServer"] }]
+}

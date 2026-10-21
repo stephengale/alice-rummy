@@ -1,4 +1,6 @@
-import type * as Party from "partykit/server";
+// Cloudflare Worker: PartyServer gives the room its own Durable Object.
+// The page itself is served from src/ by Workers static assets (wrangler.jsonc).
+import { Server, routePartykitRequest, type Connection, type WSMessage } from "partyserver";
 
 type Suit = "H" | "D" | "C" | "S";
 
@@ -50,28 +52,28 @@ const ROUND_OVER_DELAY_MS = 5000;
 
 const RECONNECT_GRACE_MS = 60_000;
 
-export default class RummyServer implements Party.Server {
-  private state: GameState;
+export class RummyServer extends Server {
+  // Not hibernating: the game state and its reconnect and round timers live in
+  // memory, and must survive between messages.
+  static options = { hibernate: false };
+
   private disconnectTimers = new Map<string, ReturnType<typeof setTimeout>>();
+  private state: GameState = {
+    phase: "waiting",
+    scores: { Tas: 0, Steve: 0 },
+    round: null,
+    winner: null,
+    connections: {},
+    roundNumber: 0,
+    lastRoundSummary: null,
+    options: { ...DEFAULT_OPTIONS },
+  };
 
-  constructor(readonly room: Party.Room) {
-    this.state = {
-      phase: "waiting",
-      scores: { Tas: 0, Steve: 0 },
-      round: null,
-      winner: null,
-      connections: {},
-      roundNumber: 0,
-      lastRoundSummary: null,
-      options: { ...DEFAULT_OPTIONS },
-    };
-  }
-
-  onConnect(conn: Party.Connection) {
+  onConnect(conn: Connection) {
     conn.send(JSON.stringify({ type: "state", state: this.viewFor(conn.id) }));
   }
 
-  onClose(conn: Party.Connection) {
+  onClose(conn: Connection) {
     const player = this.playerFor(conn.id);
     if (!player) return;
 
@@ -86,27 +88,27 @@ export default class RummyServer implements Party.Server {
       const timer = setTimeout(() => {
         this.disconnectTimers.delete(player);
         if (!this.state.connections[player]) {
-          for (const c of this.room.getConnections()) {
+          for (const c of this.getConnections()) {
             c.send(JSON.stringify({ type: "opponent_disconnected" }));
           }
           this.state.phase = "waiting";
           this.state.round = null;
           this.state.lastRoundSummary = null;
-          this.broadcast();
+          this.broadcastState();
         }
       }, RECONNECT_GRACE_MS);
 
       this.disconnectTimers.set(player, timer);
 
-      for (const c of this.room.getConnections()) {
+      for (const c of this.getConnections()) {
         c.send(JSON.stringify({ type: "reconnecting", player }));
       }
     }
 
-    this.broadcast();
+    this.broadcastState();
   }
 
-  onMessage(message: string | ArrayBuffer, sender: Party.Connection) {
+  onMessage(sender: Connection, message: WSMessage) {
     let msg: Record<string, unknown>;
     try {
       msg = JSON.parse(message as string);
@@ -143,7 +145,7 @@ export default class RummyServer implements Party.Server {
 
   // --- Handlers ---
 
-  private handleJoin(conn: Party.Connection, playerName: string) {
+  private handleJoin(conn: Connection, playerName: string) {
     if (!(PLAYERS as readonly string[]).includes(playerName)) {
       return conn.send(JSON.stringify({ type: "error", message: "Invalid player name" }));
     }
@@ -163,17 +165,17 @@ export default class RummyServer implements Party.Server {
     if (timer !== undefined) {
       clearTimeout(timer);
       this.disconnectTimers.delete(playerName);
-      for (const c of this.room.getConnections()) {
+      for (const c of this.getConnections()) {
         c.send(JSON.stringify({ type: "reconnected", player: playerName }));
       }
     }
 
     this.state.connections[playerName] = conn.id;
-    this.broadcast();
+    this.broadcastState();
     this.checkAutoStart();
   }
 
-  private handleDraw(conn: Party.Connection, player: string | null, from: "stock" | "discard") {
+  private handleDraw(conn: Connection, player: string | null, from: "stock" | "discard") {
     if (!player || !this.state.round) return;
     const r = this.state.round;
 
@@ -206,10 +208,10 @@ export default class RummyServer implements Party.Server {
     r.hands[player].push(card);
     r.turnPhase = "action";
     r.hasMeldedThisTurn = false;
-    this.broadcast();
+    this.broadcastState();
   }
 
-  private handleMeld(conn: Party.Connection, player: string | null, cardIds: string[]) {
+  private handleMeld(conn: Connection, player: string | null, cardIds: string[]) {
     if (!player || !this.state.round) return;
     const r = this.state.round;
 
@@ -235,10 +237,10 @@ export default class RummyServer implements Party.Server {
     r.hasMeldedThisTurn = true;
 
     if (r.hands[player].length === 0) return this.playerGoesOut(player);
-    this.broadcast();
+    this.broadcastState();
   }
 
-  private handleLayoff(conn: Party.Connection, player: string | null, cardIds: string[], meldId: string) {
+  private handleLayoff(conn: Connection, player: string | null, cardIds: string[], meldId: string) {
     if (!player || !this.state.round) return;
     const r = this.state.round;
 
@@ -267,10 +269,10 @@ export default class RummyServer implements Party.Server {
     meld.type = meldType;
 
     if (r.hands[player].length === 0) return this.playerGoesOut(player);
-    this.broadcast();
+    this.broadcastState();
   }
 
-  private handleDoneAction(conn: Party.Connection, player: string | null) {
+  private handleDoneAction(conn: Connection, player: string | null) {
     if (!player || !this.state.round) return;
     const r = this.state.round;
 
@@ -281,10 +283,10 @@ export default class RummyServer implements Party.Server {
       return conn.send(JSON.stringify({ type: "error", message: "Tas Rules: you have multiple melds in hand — play one before proceeding!" }));
     }
     r.turnPhase = "discard";
-    this.broadcast();
+    this.broadcastState();
   }
 
-  private handleDiscard(conn: Party.Connection, player: string | null, cardId: string) {
+  private handleDiscard(conn: Connection, player: string | null, cardId: string) {
     if (!player || !this.state.round) return;
     const r = this.state.round;
 
@@ -311,10 +313,10 @@ export default class RummyServer implements Party.Server {
     r.currentTurn = next;
     r.turnPhase = "draw";
     r.hasMeldedThisTurn = false;
-    this.broadcast();
+    this.broadcastState();
   }
 
-  private handleSetOptions(conn: Party.Connection, player: string | null, options: Partial<GameOptions>) {
+  private handleSetOptions(conn: Connection, player: string | null, options: Partial<GameOptions>) {
     if (!player || this.state.phase !== "options") return;
     if (options.mode === "points" || options.mode === "single") {
       this.state.options.mode = options.mode;
@@ -325,7 +327,7 @@ export default class RummyServer implements Party.Server {
     if (typeof options.tasRules === "boolean") {
       this.state.options.tasRules = options.tasRules;
     }
-    this.broadcast();
+    this.broadcastState();
   }
 
   private handleBeginGame(player: string | null) {
@@ -340,7 +342,7 @@ export default class RummyServer implements Party.Server {
     const connected = Object.keys(this.state.connections).length;
     if (connected === 2 && this.state.phase === "waiting") {
       this.state.phase = "options";
-      this.broadcast();
+      this.broadcastState();
     }
   }
 
@@ -374,7 +376,7 @@ export default class RummyServer implements Party.Server {
     this.state.phase = "playing";
     this.state.roundNumber++;
     this.state.lastRoundSummary = null;
-    this.broadcast();
+    this.broadcastState();
   }
 
   private playerGoesOut(player: string) {
@@ -392,10 +394,10 @@ export default class RummyServer implements Party.Server {
     if (gameOver) {
       this.state.winner = player;
       this.state.phase = "finished";
-      this.broadcast();
+      this.broadcastState();
     } else {
       this.state.phase = "round_over";
-      this.broadcast();
+      this.broadcastState();
       setTimeout(() => {
         if (this.state.phase === "round_over") {
           this.startRound();
@@ -407,7 +409,7 @@ export default class RummyServer implements Party.Server {
   private endRoundDraw() {
     this.state.lastRoundSummary = { winner: null, points: 0, isDraw: true };
     this.state.phase = "round_over";
-    this.broadcast();
+    this.broadcastState();
     setTimeout(() => {
       if (this.state.phase === "round_over") {
         this.startRound();
@@ -416,7 +418,7 @@ export default class RummyServer implements Party.Server {
   }
 
   private handleEndGame() {
-    for (const c of this.room.getConnections()) {
+    for (const c of this.getConnections()) {
       c.send(JSON.stringify({ type: "end_game" }));
     }
     this.state = {
@@ -431,7 +433,7 @@ export default class RummyServer implements Party.Server {
     };
   }
 
-  private handleReset(conn: Party.Connection, player: string | null) {
+  private handleReset(conn: Connection, player: string | null) {
     if (!player) return;
     this.state = {
       phase: "waiting",
@@ -443,7 +445,7 @@ export default class RummyServer implements Party.Server {
       lastRoundSummary: null,
       options: { ...this.state.options }, // preserve options from previous game
     };
-    this.broadcast();
+    this.broadcastState();
     this.checkAutoStart();
   }
 
@@ -563,8 +565,9 @@ export default class RummyServer implements Party.Server {
     };
   }
 
-  private broadcast() {
-    for (const conn of this.room.getConnections()) {
+  /** Each connection gets its own view: the opponent's hand stays hidden. */
+  private broadcastState() {
+    for (const conn of this.getConnections()) {
       conn.send(JSON.stringify({ type: "state", state: this.viewFor(conn.id) }));
     }
   }
@@ -588,3 +591,11 @@ export default class RummyServer implements Party.Server {
     return a;
   }
 }
+
+export default {
+  // The room is at /parties/main/main: "main" is the kebab-cased name of the
+  // Durable Object binding in wrangler.jsonc, then the room name.
+  async fetch(request: Request, env: Env): Promise<Response> {
+    return (await routePartykitRequest(request, env)) ?? new Response("Not found", { status: 404 });
+  },
+} satisfies ExportedHandler<Env>;
